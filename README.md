@@ -96,9 +96,6 @@ This is a basic-level project meant for learning and small demos.
 - Automatic email delivery of monthly reports
 - Unit tests for the backend
 
-## License
-
-Add a license of your choice (for example MIT) before publishing.
 
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Declaration of Ai use :-
