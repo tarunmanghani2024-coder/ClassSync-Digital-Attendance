@@ -79,7 +79,13 @@ async function seed(){
  const d=new Date(pm);let k=0;
  for(;iso(d)<T;d.setDate(d.getDate()+1)){if(!isWork(d))continue;k++;const m={};users.slice(1).forEach((u,i)=>{const v=(i*37+k*53+k*k*7)%100;m[u.id]=v<base[i]?'P':v<base[i]+4?'L':'A'});att[iso(d)]=m}
 }
-function save(){mem=JSON.stringify(S);try{localStorage.setItem('classsync2',mem)}catch(e){}}
+const API='/api/data',LOC='classsync2';
+let saveT=null,online=null,lastSrv='';
+const shared=()=>{const{me,theme,...rest}=S;return rest}; /* me + theme stay private to each browser */
+function save(){mem=JSON.stringify(S);try{localStorage.setItem(LOC,mem)}catch(e){}clearTimeout(saveT);saveT=setTimeout(push,300)}
+async function push(){const body=JSON.stringify(shared());try{const r=await fetch(API,{method:'PUT',headers:{'Content-Type':'application/json'},body});if(!r.ok)throw 0;lastSrv=body;if(online===false)toast('Reconnected to server');online=true}catch(e){if(online!==false)toast('Server offline – saved in this browser only');online=false}}
+async function pull(){const r=await fetch(API);if(r.status===204)return null;if(!r.ok)throw 0;return await r.text()}
+async function sync(){try{const t=await pull();if(t&&t!==lastSrv){S=Object.assign(JSON.parse(t),{me:S.me,theme:S.theme});S.hol=S.hol||[];S.audit=S.audit||[];lastSrv=t;return true}}catch(e){}return false}
 const audit=t=>{S.audit.push({t,at:new Date().toLocaleString(),by:(me()||{}).name||'system'});S.audit=S.audit.slice(-100)};
 const studs=()=>S.users.filter(u=>u.role==='student'),me=()=>S.users.find(u=>u.id===S.me);
 const th=()=>S.cfg.th;
@@ -113,7 +119,7 @@ async function reg(id){const name=$('#nm').value.trim(),pe=$('#pe').value.trim()
  S.users.push(u);ph='';S.me=u.id;audit('Registered '+name);save();go('dash')}
 async function login(){const n=$('#ln').value.trim().toLowerCase(),r=$('#lr').value,u=S.users.find(x=>x.role===r&&x.name.toLowerCase()===n);
  if(u&&u.pw===await H($('#lp').value)){S.me=u.id;save();go('dash')}else toast('Wrong name or password')}
-function authUI(){return`<div class="auth"><div class="hero"><div class="logo"><i>✓</i>ClassSync</div><h1>Attendance that<br>reports itself.</h1><p>Mark attendance in seconds, track every student, and prepare monthly reports for parents.</p><div class="chips"><span>🔐 Password login</span><span>📊 Live dashboard</span><span>🎯 Shortage calculator</span><span>🧾 Audit log</span></div></div>
+function authUI(){return`<div class="auth"><div class="hero"><div class="logo"><i>✓</i>ClassSync</div><h1>Attendance that<br>reports itself.</h1><p>Mark attendance in seconds, track every student, and prepare monthly reports for parents.</p><div class="chips"><span>🔐 Password login</span><span>📊 Live dashboard</span><span>🎯 Shortage calculator</span><span>🧾 Audit log</span><span>☕ Java backend</span></div></div>
 <div class="form"><div class="card"><div class="tabs"><button class="${tab=='login'?'on':''}" onclick="tab='login';go()">Login</button><button class="${tab=='reg'?'on':''}" onclick="tab='reg';go()">Register</button></div>
 ${tab=='login'?`<label for="lr">Login as</label><select id="lr"><option value="teacher">Teacher</option><option value="student">Student</option></select><label for="ln">Full name</label><input id="ln"><label for="lp">Password</label><input id="lp" type="password" onkeydown="if(event.key=='Enter')login()"><button class="btn pri" style="width:100%;margin-top:16px" onclick="login()">Login</button><p style="color:var(--mute);font-size:12px;margin:14px 0 0">Demo accounts: <b>Prof. Meera Joshi</b> / teacher123 · <b>Aman Sharma</b> / student123</p>`:regForm()}</div></div></div>`}
 /* ---------- SHELL ---------- */
@@ -167,9 +173,9 @@ function addH(){const v=$('#hd').value;if(v&&!S.hol.includes(v)){S.hol.push(v);a
 /* ---------- CHECK-IN ---------- */
 const cd=()=>{const t=Math.max(0,Math.ceil((S.sess.exp-Date.now())/1000));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
 function startSess(){S.sess={code:rnd(),start:Date.now(),exp:Date.now()+120000,date:T};audit('Check-in code started');save();go()}
-function sessCard(){const s=S.sess,live=s&&s.exp>Date.now();return`<div class="card" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:space-between"><div><h3>🔐 Student self check-in</h3><p style="color:var(--mute);margin:4px 0 0;font-size:13px">Code valid 2 minutes. Students who enter it after the first 10 minutes of class are marked Late. Needs a backend to work across devices.</p></div>${live?`<div style="text-align:center"><div style="font-size:34px;font-weight:800;letter-spacing:6px;color:var(--pri)">${s.code}</div><small style="color:var(--mute)">expires in <b id="cd">${cd()}</b></small></div><button class="btn" onclick="S.sess=null;save();go()">Stop</button>`:`<button class="btn pri" onclick="startSess()">Generate code</button>`}</div>`}
+function sessCard(){const s=S.sess,live=s&&s.exp>Date.now();return`<div class="card" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:space-between"><div><h3>🔐 Student self check-in</h3><p style="color:var(--mute);margin:4px 0 0;font-size:13px">Code valid 2 minutes. Students who enter it after the first 10 minutes of class are marked Late. Works across devices through the Java server.</p></div>${live?`<div style="text-align:center"><div style="font-size:34px;font-weight:800;letter-spacing:6px;color:var(--pri)">${s.code}</div><small style="color:var(--mute)">expires in <b id="cd">${cd()}</b></small></div><button class="btn" onclick="S.sess=null;save();go()">Stop</button>`:`<button class="btn pri" onclick="startSess()">Generate code</button>`}</div>`}
 function selfCard(u){const t=(S.att[T]||{})[u.id];return`<div class="card" style="margin-bottom:16px"><h3>📍 Mark today’s attendance</h3>${t?`<p>You’re marked <span class="pill ${t=='A'?'low':'good'}">${{P:'Present',A:'Absent',L:'Late',E:'Excused'}[t]}</span> for today.</p>`:`<p style="color:var(--mute);margin:4px 0 12px;font-size:13px">Enter the 6-digit code shown by your teacher.</p><div class="row"><input id="code" aria-label="Code" maxlength="6" inputmode="numeric" placeholder="000000" style="max-width:170px;font-size:20px;letter-spacing:4px;text-align:center"><button class="btn pri" onclick="selfMark()">Mark me present</button></div>`}</div>`}
-function selfMark(){const u=me(),c=$('#code').value.trim(),s=S.sess;if(!s||s.exp<=Date.now())return toast('No active code – ask your teacher');if(c!==s.code)return toast('Wrong code, try again');
+async function selfMark(){const c=$('#code').value.trim();await sync();const u=me(),s=S.sess;if(!s||s.exp<=Date.now())return toast('No active code – ask your teacher');if(c!==s.code)return toast('Wrong code, try again');
  const late=Date.now()-s.start>600000;(S.att[T]=S.att[T]||{})[u.id]=late?'L':'P';audit(u.name+' self check-in');save();toast(late?'Marked Late':'✅ Attendance marked');go()}
 /* ---------- STUDENT ---------- */
 const calNav=()=>`<div class="row"><button class="btn" aria-label="Previous month" onclick="shift(-1)">‹</button><b style="min-width:140px;text-align:center">${mname(cal)}</b><button class="btn" aria-label="Next month" onclick="shift(1)">›</button></div>`;
@@ -185,7 +191,11 @@ function rCal(){const s=studs(),y=+cal.slice(0,4),m=+cal.slice(5,7)-1,first=new 
  return`<div class="head"><h2>Attendance calendar</h2>${calNav()}</div><div class="card"><div class="cal big">${c}</div>${legend(1)}<p style="color:var(--mute);font-size:13px">Tap any day to view or edit. Colours show class-wide attendance for that day (not Late). Struck-through days are holidays.</p></div>`}
 /* timer: updates only the countdown, never re-renders the page */
 setInterval(()=>{const e=$('#cd');if(e&&S.sess)e.textContent=S.sess.exp<=Date.now()?'expired':cd()},1000);
-(async()=>{try{S=JSON.parse(localStorage.getItem('classsync2')||'null')}catch(e){}
- if(!S&&mem)try{S=JSON.parse(mem)}catch(e){}if(!S)await seed();S.hol=S.hol||[];S.audit=S.audit||[];
+setInterval(async()=>{if(!online||!S||!S.me||dirty||saveT&&online===null||document.querySelector('.modal')||/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;if(await sync())go()},5000);
+(async()=>{let L=null;try{L=JSON.parse(localStorage.getItem(LOC)||'null')}catch(e){}
+ try{const t=await pull();online=true;if(t){S=JSON.parse(t);lastSrv=t}else S=L}catch(e){online=false;S=L}
+ if(!S)await seed();else if(L&&online){S.me=L.me;S.theme=L.theme}
+ S.hol=S.hol||[];S.audit=S.audit||[];
+ if(online&&!lastSrv)push();
  if(S.theme)document.documentElement.dataset.theme=S.theme;go()})();
 </script></body></html>
